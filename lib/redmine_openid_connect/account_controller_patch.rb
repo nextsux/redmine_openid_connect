@@ -127,6 +127,7 @@ module RedmineOpenidConnect
 
           if user.save
             user.update_attribute(:admin, oic_session.admin?)
+            update_groups(user, user_info['member_of'])
             oic_session.user_id = user.id
             oic_session.save!
             # after user creation just show "My Page" don't redirect to remember
@@ -141,6 +142,7 @@ module RedmineOpenidConnect
           end
         else
           user.update_attribute(:admin, oic_session.admin?)
+          update_groups(user, user_info['member_of'])
           oic_session.user_id = user.id
           oic_session.save!
           # redirect back to initial URL
@@ -150,6 +152,32 @@ module RedmineOpenidConnect
           end
           successful_authentication(user)
         end # if user.nil?
+      end
+    end
+
+    def update_groups(user, groups)
+      groups.each do |group|
+        rm_g = Group.find_by(:lastname => group.to_s.downcase)
+        unless rm_g.nil?
+          logger.error("found group: " + rm_g.lastname)
+          if not rm_g.user_ids.include? user.id
+            rm_g.users << user
+            logger.error("user added to group")
+          end
+        else
+          logger.error("no group " + group)
+        end
+      end
+
+      Group.find_each do |g|
+        if g.givable?
+          if groups.include? g.lastname.to_s.downcase
+            logger.error("includes " + g.lastname)
+          else
+            logger.error("includes NOT " + g.lastname)
+            g.users.delete(user)
+          end
+        end
       end
     end
 
